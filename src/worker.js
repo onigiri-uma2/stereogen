@@ -32,36 +32,43 @@ try {
  */
 class PipelineSingleton {
   static task = 'depth-estimation';
-  static model = 'onnx-community/depth-anything-v2-small'; // 高精度かつ軽量なV2モデル
+  static model = 'onnx-community/depth-anything-v2-small';
   static instance = null;
+  static initializationPromise = null;
 
   /**
    * インスタンスを取得する。未作成の場合は初期化を行う。
+   * プロミスロックにより、同時に複数のリクエストが来ても初期化は一度だけ実行されます。
    */
   static async getInstance(progress_callback = null) {
-    if (this.instance === null) {
+    if (this.instance) {
+      return this.instance;
+    }
+
+    if (this.initializationPromise) {
+      return this.initializationPromise;
+    }
+
+    this.initializationPromise = (async () => {
       const opts = { progress_callback };
       
-      // デバイスの能力に応じて精度（dtype）を切り替え
       if (typeof SharedArrayBuffer === 'undefined') {
-        // GitHub Pages/スマホ制限環境でも安定性を重視して fp32 (32bit) を使用
-        // ※以前は fp16 を指定していましたが、特定のエンジンバージョンで最適化エラーが出るため
         opts.device = 'wasm';
         opts.dtype = 'fp32';
       } else {
-        // PC/充足環境: 最高精度の fp32 (32bit) を使用
         opts.dtype = 'fp32';
       }
       
       try {
-        // パイプライン（タスク別の実行環境）の作成
         this.instance = await pipeline(this.task, this.model, opts);
+        return this.instance;
       } catch (err) {
-        console.error('Failed to create pipeline:', err);
-        throw new Error('AIエンジンを初期化できませんでした (メモリ不足やネットワークエラーの可能性があります): ' + err.message);
+        this.initializationPromise = null; // エラー時はリトライ可能にする
+        throw err;
       }
-    }
-    return this.instance;
+    })();
+
+    return this.initializationPromise;
   }
 }
 

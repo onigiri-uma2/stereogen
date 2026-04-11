@@ -141,9 +141,8 @@ function App() {
       }
     } else if (status === 'ready') {
       if (info) setAiModelInfo(info);
-      // モデル読み込み完了時、直後に推論(inferring)が始まる可能性があるため、
-      // 既に解析フロー(loading)に入っている場合はステータスを勝手にidleに戻さない
-      setAiStatus(prev => (prev === 'loading' ? 'loading' : 'idle'));
+      // モデル読み込み完了時、既に推論(inferring)が始まっている場合はその状態を維持する
+      setAiStatus(prev => (prev === 'inferring' ? 'inferring' : 'idle'));
     } else if (status === 'inferring') {
       setAiStatus('inferring');
       setAiProgress('AIが深度を推定しています...');
