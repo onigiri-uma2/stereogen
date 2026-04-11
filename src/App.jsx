@@ -421,11 +421,12 @@ function App() {
     const isCached = await checkIfModelCached();
     if (!isCached) {
       // デバイスに応じた警告メッセージの調整
-      const isMobileProxy = typeof SharedArrayBuffer === 'undefined';
+      // モバイル端末（画面幅またはUserAgent）の場合のみ通信量の警告を表示
+      const isMobile = isMobileView || /Mobi|Android|iPhone/i.test(navigator.userAgent);
       const warningTitle = '⚠️ AI画像解析の準備';
-      const warningBody = isMobileProxy
+      const warningBody = isMobile
         ? '解析に必要なAIモデル（約 50MB）をダウンロードします。\nパケット通信量にご注意ください。'
-        : '解析に必要なAIモデル（約 50MB）を読み込みます。';
+        : '解析に必要なAIモデル（約 50MB）をロードします。';
 
       const confirmed = window.confirm(
         `${warningTitle}\n\n`
