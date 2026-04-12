@@ -790,26 +790,43 @@ function App() {
     const brightness = Math.min(255, Math.max(0, textDepth));
     ctx.fillStyle = `rgb(${brightness}, ${brightness}, ${brightness})`;
 
-    const metrics = ctx.measureText(depthText);
-    const textW = metrics.width;
-    let x = canvasW / 2;
-    const ascent = metrics.actualBoundingBoxAscent || (textFontSize * 0.75);
-    const descent = metrics.actualBoundingBoxDescent || (textFontSize * 0.25);
-    const visualCenterOffset = (ascent - descent) / 2;
-    let y = canvasH / 2 + visualCenterOffset;
+    const lines = depthText.split('\n');
+    const lineHeight = textFontSize * 1.2;
 
+    // 各行の幅を計測して最大幅を取得（スクロール計算用）
+    let maxTextW = 0;
+    lines.forEach(line => {
+      const metrics = ctx.measureText(line);
+      if (metrics.width > maxTextW) maxTextW = metrics.width;
+    });
+
+    let x = canvasW / 2;
     // スクロール速度が設定されている場合は、渡された時間に基づいて位置を決定する
     // （isPlayingが停止すると、渡される時間も止まるため、その場に静止します）
     if (textScrollSpeed > 0) {
       const speed = 0.1 * textScrollSpeed;
-      const totalDist = canvasW + textW;
+      const totalDist = canvasW + maxTextW;
       // 初期状態(time=0)で中央に来るように、開始点（オフセット）を調整する
-      const initialOffset = (canvasW + textW) / 2;
+      const initialOffset = (canvasW + maxTextW) / 2;
       const offset = (time * speed + initialOffset) % totalDist;
-      x = canvasW - offset + textW / 2;
+      x = canvasW - offset + maxTextW / 2;
     }
 
-    ctx.fillText(depthText, x, y);
+    // 全体の高さを計算して垂直方向の中央揃えを行う
+    const firstLineMetrics = ctx.measureText(lines[0]);
+    const ascent = firstLineMetrics.actualBoundingBoxAscent || (textFontSize * 0.75);
+    const lastLineMetrics = ctx.measureText(lines[lines.length - 1]);
+    const descent = lastLineMetrics.actualBoundingBoxDescent || (textFontSize * 0.25);
+    const blockHeight = (lines.length - 1) * lineHeight + ascent + descent;
+    
+    // 描画開始のY座標
+    let currentY = (canvasH - blockHeight) / 2 + ascent;
+
+    lines.forEach((line) => {
+      ctx.fillText(line, x, currentY);
+      currentY += lineHeight;
+    });
+
     ctx.filter = 'none';
   }, [depthText, textFontSize, textFontFamily, textScrollSpeed, textSoftness, textDepth, getTargetDimensions]);
 
@@ -1188,7 +1205,13 @@ function App() {
           {depthMode === 'text' && (
             <div className="mt-2" style={{ marginBottom: '12px', background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
               <label className="mb-2">テキストを入力
-                <input type="text" value={depthText} onChange={e => setDepthText(e.target.value)} placeholder="文字を入力..." className="mt-1" />
+                <textarea 
+                  value={depthText} 
+                  onChange={e => setDepthText(e.target.value)} 
+                  placeholder="文字を入力..." 
+                  className="mt-1 depth-text-area" 
+                  rows={3} 
+                />
               </label>
               <label>サイズ ({textFontSize}px)
                 <input type="range" min="20" max="1000" value={textFontSize} onChange={e => setTextFontSize(Number(e.target.value))} />
