@@ -19,6 +19,7 @@ function App() {
   const [separation, setSeparation] = useState(150); // 左右の基準視差(ピクセル数)
   const [depthFactor, setDepthFactor] = useState(0.33); // 奥行きの強調度
   const [showGuideDots, setShowGuideDots] = useState(true); // 合焦を助けるガイドドットの表示
+  const [smoothingMode, setSmoothingMode] = useState(false); // 高品質（平滑化）モード
 
   // --- 深度マップ（3Dの元データ）のソース設定 ---
   const [depthMode, setDepthMode] = useState('default'); // 'default', 'animated', 'text', 'upload', 'ai'
@@ -253,7 +254,8 @@ function App() {
       patternData,
       patternWidth: pW,
       patternHeight: pH,
-      seed: Math.floor(time / 50) // 約20fpsでノイズをキラキラ（シード変化）させる
+      seed: Math.floor(time / 50), // 約20fpsでノイズをキラキラ（シード変化）させる
+      smoothing: smoothingMode
     });
 
     // 結果をキャンバスに描画
@@ -843,7 +845,7 @@ function App() {
     if (!isPlaying && !wiggleEnabled) {
       triggerRender();
     }
-  }, [method, bgType, separation, depthFactor, noiseSize, wiggleEnabled, showGuideDots, isPlaying, triggerRender]);
+  }, [method, bgType, separation, depthFactor, noiseSize, wiggleEnabled, showGuideDots, smoothingMode, isPlaying, triggerRender]);
 
   // --- 再描画ループの状態管理 (Closureの罠を避けるためRefを使用) ---
   const loopStateRef = useRef({ isPlaying, depthSourceType, wiggleEnabled });
@@ -1153,6 +1155,12 @@ function App() {
             <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', cursor: 'pointer', marginTop: '16px' }}>
               <input type="checkbox" checked={showGuideDots} onChange={e => setShowGuideDots(e.target.checked)} style={{ width: '18px', height: '18px', marginRight: '8px' }} />
               ガイドドットを表示 (● ●)
+            </label>
+          </Tooltip>
+          <Tooltip content="バイリニア補間とサブピクセル視差により、なだらかな曲線やテクスチャを美しく再現します。スミアも発生しにくくなります。" showIcon={true}>
+            <label style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', cursor: 'pointer', marginTop: '12px' }}>
+              <input type="checkbox" checked={smoothingMode} onChange={e => setSmoothingMode(e.target.checked)} style={{ width: '18px', height: '18px', marginRight: '8px' }} />
+              高品質（平滑化）モード
             </label>
           </Tooltip>
         </div>
