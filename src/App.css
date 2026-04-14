@@ -210,6 +210,7 @@ input[type="range"]::-webkit-slider-thumb {
   flex-direction: column;
   padding: 32px;
   overflow-y: auto;
+  position: relative; /* 子要素のフローティング（absolute）の基準点にする */
 }
 
 .kanban {
@@ -230,20 +231,126 @@ input[type="range"]::-webkit-slider-thumb {
   display: flex;
   flex-direction: column;
   align-items: center;
+  min-width: 0; /* ブラウザの最小幅計算を無効化 */
+  min-height: 0;
+  overflow: hidden; /* 中身の画像が枠を突き出すのを防ぐ */
 }
 
 .panel h2 {
   font-size: 16px;
   color: var(--text-secondary);
-  align-self: flex-start;
-  margin-bottom: 16px;
   text-transform: uppercase;
   letter-spacing: 1px;
+  margin: 0;
+}
+
+.panel-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  cursor: grab;
+  user-select: none;
+  padding: 4px;
+  border-radius: 8px;
+  transition: background 0.2s;
+  flex-shrink: 0; /* ヘッダーは潰れないようにする */
+}
+
+.panel-header:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.panel-header:active {
+  cursor: grabbing;
+}
+
+.panel-title-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.drag-icon {
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.panel-content {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* パネル内部でツールチップを使用する場合、レイアウトの連鎖（Flex）を維持する */
+.panel-content .tooltip-wrapper,
+.panel-content .tooltip-trigger,
+.panel-content .tooltip-content-grow {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.floating {
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1);
+  background: rgba(30, 32, 47, 0.85) !important;
+  backdrop-filter: blur(20px);
+}
+
+.floating.dragging {
+  opacity: 0.9;
+  z-index: 1000 !important;
+}
+
+.resize-handle {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: nwse-resize;
+  color: var(--text-secondary);
+  opacity: 0.3;
+  transition: opacity 0.2s;
+}
+
+.resize-handle:hover {
+  opacity: 1;
+  color: var(--accent-color);
+}
+
+.reset-pos-btn {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: var(--text-secondary);
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.reset-pos-btn:hover {
+  background: var(--accent-color);
+  color: white;
 }
 
 .canvas-container {
   width: 100%;
-  max-width: 800px;
+  flex: 1 1 auto;
+  min-height: 0; /* flexアイテムが縮小できるようにする */
   background: rgba(0,0,0,0.4);
   border-radius: 12px;
   overflow: hidden;
@@ -252,11 +359,19 @@ input[type="range"]::-webkit-slider-thumb {
   justify-content: center;
   align-items: center;
   padding: 12px;
+  box-sizing: border-box;
+}
+
+/* パネルが手動でリサイズ（固定高さモード）された場合のみ、縦方向の強制フィットを有効化 */
+.panel.resized .canvas-container {
+  height: 0;
 }
 
 .preview-canvas {
+  width: 100%;
+  height: 100%;
   max-width: 100%;
-  max-height: 50vh;
+  max-height: 100%; /* パネルの高さに合わせて伸縮 */
   object-fit: contain;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.3);
@@ -462,7 +577,7 @@ input[type="range"]::-webkit-slider-thumb {
   }
 
   .preview-canvas {
-    max-height: 40vh;
+    max-height: 40vh; /* モバイルでは画面を占有しすぎないよう制限 */
   }
 
   .logo h1 {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { generateStereogram, applyWiggleToDepthMap } from './stereogram';
-import { Settings, Image as ImageIcon, Video, Download, RefreshCw, Upload, Play, Square, Activity, Wand2, Loader2, Sliders, Menu, X, HelpCircle, AlertCircle } from 'lucide-react';
+import { Settings, Image as ImageIcon, Video, Download, RefreshCw, Upload, Play, Square, Activity, Wand2, Loader2, Sliders, Menu, X, HelpCircle, AlertCircle, Layout } from 'lucide-react';
+import DraggablePanel from './components/DraggablePanel';
 import Tooltip from './components/Tooltip';
 import './App.css';
 
@@ -1364,22 +1365,34 @@ function App() {
       <main className="main-content">
         <div className="kanban">
           {/* 深度マッププレビュー */}
-          <div className="panel depth-panel">
-            <h2>立体の形状 (深度マップ)</h2>
+          <DraggablePanel 
+            title="立体の形状 (深度マップ)" 
+            id="depth-panel-draggable" 
+            isMobile={isMobileView} 
+            className="depth-panel"
+            initialPos={{ x: 0, y: 0 }}
+            initialSize={{ width: 440, height: 'auto' }}
+          >
             <div className="canvas-container">
               <canvas ref={depthCanvasRef} className="preview-canvas" />
             </div>
-          </div>
+          </DraggablePanel>
 
           {/* 生成結果プレビュー（PCではホバー時に案内を表示） */}
-          <div className="panel output-panel">
-            <h2>完成したステレオグラム</h2>
+          <DraggablePanel 
+            title="完成したステレオグラム" 
+            id="output-panel-draggable" 
+            isMobile={isMobileView} 
+            className="output-panel"
+            initialPos={{ x: 472, y: 0 }}
+            initialSize={{ width: 640, height: 'auto' }}
+          >
             <Tooltip content={!isMobileView ? "クリックで全画面表示" : null}>
               <div className="canvas-container" onClick={() => setFullscreenView(true)} style={{ cursor: 'pointer' }}>
                 <canvas ref={outputCanvasRef} className="preview-canvas" />
               </div>
             </Tooltip>
-          </div>
+          </DraggablePanel>
         </div>
       </main>
 
