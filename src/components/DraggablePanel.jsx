@@ -160,7 +160,7 @@ const DraggablePanel = ({
     >
       <div className="panel-header" onMouseDown={handleDragStart}>
         <div className="panel-title-area">
-          <Move size={14} className="drag-icon" />
+          {!isMobile && <Move size={14} className="drag-icon" />}
           <h2>{title}</h2>
         </div>
         {!isMobile && isFloating && (

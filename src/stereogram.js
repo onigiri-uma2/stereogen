@@ -40,80 +40,94 @@ export function generateStereogram(depthData, width, height, options) {
     // 2. 視差計算とリンク/描画処理
     // smoothingモード（高品質）と通常モードでアルゴリズムを分岐
     if (options.smoothing) {
-      // --- 高品質（平滑化）モード: 片側参照型 + バイリニア補間 + サブピクセル視差 ---
-      // このモードでは、各ピクセルの色を「過去のピクセル（左側）」からコピーすることでステレオグラムを構築します。
-      // 整数単位のリンクではなく、小数点以下のズレ（サブピクセル）を扱うことで、なだらかな面を再現します。
-      const currentRow = new Uint8ClampedArray(width * 4);
+      // --- 高品質（平滑化）モード: トレースバック方式 ---
+      // 累積誤差（立体感の崩れやボケ）を完全に防ぐため、各ピクセルからシード領域（画像左側）まで
+      // 視差経路を直接遡ります。これにより、左から右への依存関係が解消され、正確な形状が維持されます。
+
+      // サブピクセル精度の深度取得関数
+      const getInterpolatedZ = (cx) => {
+        const x1 = Math.floor(cx);
+        const x2 = Math.min(x1 + 1, width - 1);
+        const f = cx - x1;
+        return rowZ[x1] * (1 - f) + rowZ[x2] * f;
+      };
 
       for (let x = 0; x < width; x++) {
-        // センタリングの補正:
-        // 通常の片側参照ではオブジェクトが左に寄るため、参照する深度のインデックスを視差の半分(d/2)だけずらします。
-        // ここでは近似的に、基準視差(separation)の半分を引いた位置の深度を使用します。
-        const targetX = Math.max(0, Math.min(width - 1, x - separation / 2));
-        const z = rowZ[Math.round(targetX)];
+        let currX = x;
         
-        let d = 0;
-        // サブピクセル精度の視差計算（Math.roundせず浮動小数点のまま使用）
-        if (method === 'parallel') {
-          d = separation * (1 - depthFactor * z); // 近いほどズレ(d)が小さい
-        } else {
-          d = separation * (1 + depthFactor * z);
+        // シード領域（参照先が画像の外になる地点）に到達するまで遡る
+        // この再帰的な遡りが、ステレオグラムの拘束条件を満たすソース座標を特定します
+        let safety = 0;
+        while (safety < 100) {
+          // センタリング補正: ズレの半分(d/2)の位置の深度を参照します
+          const targetX = currX - separation / 2;
+          const z = getInterpolatedZ(Math.max(0, Math.min(width - 1, targetX)));
+          
+          let d = 0;
+          if (method === 'parallel') {
+            d = separation * (1 - depthFactor * z);
+          } else {
+            d = separation * (1 + depthFactor * z);
+          }
+          
+          if (currX - d < 0) break;
+          currX -= d;
+          safety++;
         }
 
-        const refX = x - d; // コピー元の座標
+        // 遡りきった先の座標 sourceX を使用して、パターンまたはノイズから「一回だけ」サンプリング
+        const sourceX = currX;
         let r, g, b, a = 255;
 
-        if (refX < 0) {
-          // 参照先が左端より外側にある場合: 新しいパターン/ノイズを生成（シード）
-          // 安定性能のため、x座標を基準幅で割った余り(stableX)をテクスチャの開始点にする
-          const stableX = x % separation;
+        if (patternData && pW && pH) {
+          // パターン画像からのサンプリング（バイリニア補間）
+          const px_f = (sourceX % pW + pW) % pW; 
+          const px1 = Math.floor(px_f);
+          const px2 = (px1 + 1) % pW;
+          const pfrac = px_f - px1;
+          const py = y % pH;
 
-          if (patternData && pW && pH) {
-            // パターン画像からのサンプリング
-            const pX = Math.floor(stableX % pW);
-            const pY = y % pH;
-            const pIdx = (pY * pW + pX) * 4;
-            r = patternData[pIdx]; g = patternData[pIdx + 1]; b = patternData[pIdx + 2]; a = patternData[pIdx + 3];
-          } else {
-            // 擬似乱数を用いたノイズ生成
-            let h = Math.imul(x ^ 0x1234567, 0x9E3779B1) + Math.imul(y ^ 0x7654321, 0x85EBCA77) + Math.imul(seed ^ 0xABCDEF, 0xC2B2AE35);
-            h ^= h >>> 13; h = Math.imul(h, 0xC2B2AE3D); h ^= h >>> 16;
-            if (isColorNoise) {
-              r = h & 0xFF; g = (h >>> 8) & 0xFF; b = (h >>> 16) & 0xFF;
-            } else {
-              const val = (h & 0x1) ? 255 : 0; r = val; g = val; b = val;
-            }
-          }
+          const idx1 = (py * pW + px1) * 4;
+          const idx2 = (py * pW + px2) * 4;
+
+          r = patternData[idx1] * (1 - pfrac) + patternData[idx2] * pfrac;
+          g = patternData[idx1 + 1] * (1 - pfrac) + patternData[idx2 + 1] * pfrac;
+          b = patternData[idx1 + 2] * (1 - pfrac) + patternData[idx2 + 2] * pfrac;
+          a = patternData[idx1 + 3] * (1 - pfrac) + patternData[idx2 + 3] * pfrac;
         } else {
-          // 参照先が画像内にある場合: 左側のピクセルから色をコピーする
-          // バイリニア補間（線形補間）により、ピクセル間の色を混ぜ合わせて滑らかにする
-          const x1 = Math.floor(refX);
-          const x2 = Math.min(x1 + 1, width - 1);
-          const frac = refX - x1; // 小数点以下の位置
+          // ノイズ生成（バイリニア補間）
+          const fx1 = Math.floor(sourceX);
+          const fx2 = fx1 + 1;
+          const ffrac = sourceX - fx1;
 
-          const idx1 = x1 * 4;
-          const idx2 = x2 * 4;
+          const getNoiseHash = (xx) => {
+            let h = Math.imul(xx ^ 0x1234567, 0x9E3779B1) + Math.imul(y ^ 0x7654321, 0x85EBCA77) + Math.imul(seed ^ 0xABCDEF, 0xC2B2AE35);
+            h ^= h >>> 13; h = Math.imul(h, 0xC2B2AE3D); h ^= h >>> 16;
+            return h;
+          };
 
-          // 周囲のピクセル値を混ぜ合わせる（ジャギーの解消）
-          r = currentRow[idx1] * (1 - frac) + currentRow[idx2] * frac;
-          g = currentRow[idx1 + 1] * (1 - frac) + currentRow[idx2 + 1] * frac;
-          b = currentRow[idx1 + 2] * (1 - frac) + currentRow[idx2 + 2] * frac;
-          a = currentRow[idx1 + 3] * (1 - frac) + currentRow[idx2 + 3] * frac;
+          const h1 = getNoiseHash(fx1);
+          const h2 = getNoiseHash(fx2);
+
+          if (isColorNoise) {
+            const r1 = h1 & 0xFF, g1 = (h1 >>> 8) & 0xFF, b1 = (h1 >>> 16) & 0xFF;
+            const r2 = h2 & 0xFF, g2 = (h2 >>> 8) & 0xFF, b2 = (h2 >>> 16) & 0xFF;
+            r = r1 * (1 - ffrac) + r2 * ffrac;
+            g = g1 * (1 - ffrac) + g2 * ffrac;
+            b = b1 * (1 - ffrac) + b2 * ffrac;
+          } else {
+            const v1 = (h1 & 0x1) ? 255 : 0;
+            const v2 = (h2 & 0x1) ? 255 : 0;
+            const val = v1 * (1 - ffrac) + v2 * ffrac;
+            r = g = b = val;
+          }
         }
 
-        // 現在の行のデータを更新（次のピクセルがここを参照するため）
-        const outIdx = x * 4;
-        currentRow[outIdx] = r;
-        currentRow[outIdx + 1] = g;
-        currentRow[outIdx + 2] = b;
-        currentRow[outIdx + 3] = a;
-
-        // 最終的な出力フレームに書き込み
-        const frameIdx = (y * width + x) * 4;
-        outputFrame[frameIdx] = r;
-        outputFrame[frameIdx + 1] = g;
-        outputFrame[frameIdx + 2] = b;
-        outputFrame[frameIdx + 3] = a;
+        const outIdx = (y * width + x) * 4;
+        outputFrame[outIdx] = r;
+        outputFrame[outIdx + 1] = g;
+        outputFrame[outIdx + 2] = b;
+        outputFrame[outIdx + 3] = a;
       }
     } else {
       // --- 通常モード: 対称リンク構造 (Symmetric Thimbleby Linking) ---
