@@ -21,6 +21,13 @@ function App() {
   const [depthFactor, setDepthFactor] = useState(0.33); // 奥行きの強調度
   const [showGuideDots, setShowGuideDots] = useState(true); // 合焦を助けるガイドドットの表示
 
+  // --- テキストパターン関連の状態 ---
+  const [textPatternChars, setTextPatternChars] = useState('○□△✛×●■▲');
+  const [textPatternSize, setTextPatternSize] = useState(16);
+  const [textPatternDensity, setTextPatternDensity] = useState(50);
+  const [textPatternColor, setTextPatternColor] = useState('random');
+
+
   // --- 深度マップ（3Dの元データ）のソース設定 ---
   const [depthMode, setDepthMode] = useState('default'); // 'default', 'animated', 'text', 'upload', 'ai'
   const [depthSourceType, setDepthSourceType] = useState('default'); // 現在アクティブなソースの種類
@@ -211,9 +218,8 @@ function App() {
     const h = depthCanvas.height;
     if (w === 0 || h === 0) return;
 
-    // ドットサイズ(noiseSize)に応じて、一旦解像度を下げて生成する
-    // これによりドットのひとつひとつが大きく表示されるようになる
-    const scale = (bgType !== 'pattern') ? noiseSize : 1;
+    // ドットサイズ(noiseSize)に応じて、一旦解像度を下げて生成する（テキストパターンの場合は1）
+    const scale = (bgType === 'color' || bgType === 'black_white') ? noiseSize : 1;
     const effectiveW = Math.max(1, Math.floor(w / scale));
     const effectiveH = Math.max(1, Math.floor(h / scale));
     const finalW = effectiveW * scale;
@@ -230,45 +236,129 @@ function App() {
     tCtx.drawImage(depthCanvas, 0, 0, w, h, 0, 0, effectiveW, effectiveH);
     const depthData = tCtx.getImageData(0, 0, effectiveW, effectiveH).data;
 
-    // パターン画像の取得
-    let patternData = null;
-    let pW = 0; let pH = 0;
-    if (bgType === 'pattern' && patternCanvas && patternCanvas.width > 0) {
-      pW = patternCanvas.width;
-      pH = patternCanvas.height;
-      patternData = patternCanvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, pW, pH).data;
-    }
-
     // 2.5Dゆらぎが有効なら計算を適用
     let finalDepthData = depthData;
     if (loopStateRef.current.wiggleEnabled) {
       finalDepthData = applyWiggleToDepthMap(depthData, effectiveW, effectiveH, time);
     }
 
-    // ステレオグラム・アルゴリズムの実行
-    const outputImgData = generateStereogram(finalDepthData, effectiveW, effectiveH, {
-      separation: Math.max(1, Math.round(separation / scale)),
-      depthFactor,
-      method,
-      noiseType: bgType === 'color' ? 'color' : 'grayscale',
-      patternData,
-      patternWidth: pW,
-      patternHeight: pH,
-      seed: Math.floor(time / 50), // 約20fpsでノイズをキラキラ（シード変化）させる
-      smoothing: bgType === 'pattern'
-    });
-
-    // 結果をキャンバスに描画
     const outCtx = outputCanvas.getContext('2d', { willReadFrequently: true });
-    const tempStereoCvs = document.createElement('canvas');
-    tempStereoCvs.width = effectiveW;
-    tempStereoCvs.height = effectiveH;
-    const tsCtx = tempStereoCvs.getContext('2d', { willReadFrequently: true });
-    tsCtx.putImageData(new ImageData(outputImgData, effectiveW, effectiveH), 0, 0);
 
-    // ドットサイズに合わせて鮮明に表示するためスムージングをOFFにする
-    outCtx.imageSmoothingEnabled = false;
-    outCtx.drawImage(tempStereoCvs, 0, 0, finalW, finalH);
+    if (bgType === 'text_pattern') {
+      // --- テキストオブジェクト・ステレオグラムの描画 ---
+      // 文字がつぶれないように、スタンプとして画面上に散布・追跡描画します。
+      outCtx.fillStyle = '#FFFFFF';
+      outCtx.fillRect(0, 0, finalW, finalH);
+      
+      if (textPatternChars) {
+        const charsArr = Array.from(textPatternChars);
+        const actualSeparation = Math.max(1, Math.round(separation / scale)) * scale;
+        // 十分な数のシードを散布（オーバーサンプリングして隙間を減らす）
+        const seedCount = Math.floor((actualSeparation * finalH / (textPatternSize * textPatternSize)) * (textPatternDensity / 100) * 2.5);
+        
+        const stamps = [];
+        for (let i = 0; i < seedCount; i++) {
+          let startX = (Math.random() * (actualSeparation * 1.5)) - (actualSeparation * 0.5);
+          let startY = Math.random() * finalH;
+          let char = charsArr[Math.floor(Math.random() * charsArr.length)];
+          
+          let color;
+          if (textPatternColor === 'monochrome') {
+              color = '#000000';
+          } else if (textPatternColor === 'grayscale') {
+              const v = Math.floor(Math.random() * 150); 
+              color = `rgb(${v},${v},${v})`;
+          } else if (textPatternColor === 'neon') {
+              const hue = Math.floor(Math.random() * 360);
+              color = `hsl(${hue}, 100%, 50%)`;
+          } else { // random
+              const r = Math.floor(Math.random() * 200);
+              const g = Math.floor(Math.random() * 200);
+              const b = Math.floor(Math.random() * 200);
+              color = `rgb(${r},${g},${b})`;
+          }
+          
+          let curX = startX;
+          let alpha = 0.8 + Math.random() * 0.2;
+          let loops = 0;
+          
+          // 左から右への追跡
+          while (curX < finalW + textPatternSize && loops < 2000) {
+            loops++;
+            // 画面内に入るスタンプだけ記録
+            if (curX > -textPatternSize) {
+              let z = 0;
+              let cx_int = Math.floor(curX);
+              let cy_int = Math.floor(startY);
+              if (cx_int >= 0 && cx_int < finalW && cy_int >= 0 && cy_int < finalH) {
+                z = finalDepthData[(cy_int * finalW + cx_int) * 4] / 255.0;
+              }
+              stamps.push({x: curX, y: startY, z: z, char: char, color: color, alpha: alpha});
+            }
+            
+            // 次の描画位置（対応点）の計算
+            let z_for_d = 0;
+            let queryX = Math.floor(curX);
+            if (queryX >= 0 && queryX < finalW) {
+              z_for_d = finalDepthData[(Math.floor(startY) * finalW + queryX) * 4] / 255.0;
+            }
+            
+            let d = 0;
+            if (method === 'parallel') {
+              d = actualSeparation * (1 - depthFactor * z_for_d);
+            } else {
+              d = actualSeparation * (1 + depthFactor * z_for_d);
+            }
+            curX += d;
+          }
+        }
+        
+        // Z値順（奥から手前へ）ソートして、手前の文字が上に描画されるようにする
+        stamps.sort((a, b) => a.z - b.z);
+        
+        outCtx.font = `bold ${textPatternSize}px sans-serif`;
+        outCtx.textAlign = 'center';
+        outCtx.textBaseline = 'middle';
+        
+        for (let s of stamps) {
+          outCtx.fillStyle = s.color;
+          outCtx.globalAlpha = s.alpha;
+          outCtx.fillText(s.char, s.x, s.y);
+        }
+        outCtx.globalAlpha = 1.0;
+      }
+    } else {
+      // パターン画像の取得
+      let patternData = null;
+      let pW = 0; let pH = 0;
+      if (bgType === 'pattern' && patternCanvas && patternCanvas.width > 0) {
+        pW = patternCanvas.width;
+        pH = patternCanvas.height;
+        patternData = patternCanvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, pW, pH).data;
+      }
+
+      // 従来のステレオグラム・アルゴリズムの実行（ピクセルベース）
+      const outputImgData = generateStereogram(finalDepthData, effectiveW, effectiveH, {
+        separation: Math.max(1, Math.round(separation / scale)),
+        depthFactor,
+        method,
+        noiseType: bgType === 'color' ? 'color' : 'grayscale',
+        patternData,
+        patternWidth: pW,
+        patternHeight: pH,
+        seed: Math.floor(time / 50),
+        smoothing: bgType === 'pattern'
+      });
+
+      const tempStereoCvs = document.createElement('canvas');
+      tempStereoCvs.width = effectiveW;
+      tempStereoCvs.height = effectiveH;
+      const tsCtx = tempStereoCvs.getContext('2d', { willReadFrequently: true });
+      tsCtx.putImageData(new ImageData(outputImgData, effectiveW, effectiveH), 0, 0);
+
+      outCtx.imageSmoothingEnabled = false;
+      outCtx.drawImage(tempStereoCvs, 0, 0, finalW, finalH);
+    }
 
     // 合焦用ドット（● ●）の描画
     if (showGuideDots) {
@@ -845,7 +935,7 @@ function App() {
     if (!isPlaying && !wiggleEnabled) {
       triggerRender();
     }
-  }, [method, bgType, separation, depthFactor, noiseSize, wiggleEnabled, showGuideDots, isPlaying, triggerRender]);
+  }, [method, bgType, separation, depthFactor, noiseSize, wiggleEnabled, showGuideDots, isPlaying, triggerRender, textPatternChars, textPatternSize, textPatternDensity, textPatternColor]);
 
   // --- 再描画ループの状態管理 (Closureの罠を避けるためRefを使用) ---
   const loopStateRef = useRef({ isPlaying, depthSourceType, wiggleEnabled });
@@ -1099,9 +1189,38 @@ function App() {
             <select className="mb-2" value={bgType} onChange={(e) => setBgType(e.target.value)}>
               <option value="black_white">砂嵐 (白黒ドット)</option>
               <option value="color">砂嵐 (カラードット)</option>
+              <option value="text_pattern">文字パターン</option>
               <option value="pattern">パターン画像を読み込む</option>
             </select>
           </Tooltip>
+
+          {bgType === 'text_pattern' && (
+            <div className="mt-2" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
+              <label className="mb-2" style={{ display: 'block' }}>散布する文字列
+                <textarea 
+                  value={textPatternChars} 
+                  onChange={e => setTextPatternChars(e.target.value)} 
+                  className="mt-1" 
+                  rows={2} 
+                  style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #4b5563', background: '#374151', color: 'white' }}
+                />
+              </label>
+              <label style={{ display: 'block', marginTop: '8px' }}>文字の大きさ ({textPatternSize}px)
+                <input type="range" min="8" max="48" value={textPatternSize} onChange={e => setTextPatternSize(Number(e.target.value))} style={{ width: '100%' }} />
+              </label>
+              <label style={{ display: 'block', marginTop: '8px' }}>配置密度 ({textPatternDensity})
+                <input type="range" min="10" max="150" value={textPatternDensity} onChange={e => setTextPatternDensity(Number(e.target.value))} style={{ width: '100%' }} />
+              </label>
+              <label className="mt-2" style={{ display: 'block', marginTop: '8px' }}>彩色方法
+                <select value={textPatternColor} onChange={e => setTextPatternColor(e.target.value)} style={{ width: '100%', marginTop: '4px', padding: '6px', borderRadius: '4px', border: '1px solid #4b5563', background: '#374151', color: 'white' }}>
+                  <option value="random">ランダムカラー</option>
+                  <option value="neon">ネオンカラー</option>
+                  <option value="monochrome">単色 (黒)</option>
+                  <option value="grayscale">グレースケール</option>
+                </select>
+              </label>
+            </div>
+          )}
 
           {bgType === 'pattern' && (
             <div className="upload-btn-wrapper mt-2">
@@ -1111,7 +1230,7 @@ function App() {
               <input type="file" accept="image/*" onChange={handlePatternUpload} />
             </div>
           )}
-          {bgType !== 'pattern' && (
+          {(bgType === 'black_white' || bgType === 'color') && (
             <Tooltip content="ドットの粒を大きくすると、立体視の焦点が合わせやすくなります。" showIcon={true}>
               <label className="mt-2 block" style={{ marginTop: '12px' }}>
                 ドットの大きさ ({noiseSize}px)
