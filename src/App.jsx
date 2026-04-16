@@ -20,6 +20,7 @@ function App() {
   const [separation, setSeparation] = useState(150); // 左右の基準視差(ピクセル数)
   const [depthFactor, setDepthFactor] = useState(0.33); // 奥行きの強調度
   const [showGuideDots, setShowGuideDots] = useState(true); // 合焦を助けるガイドドットの表示
+  const [guideDotSize, setGuideDotSize] = useState(8); // ガイドドットの大きさ
 
   // --- テキストパターン関連の状態 ---
   const [textPatternChars, setTextPatternChars] = useState('○□△✛×●■▲');
@@ -249,81 +250,109 @@ function App() {
       // 文字がつぶれないように、スタンプとして画面上に散布・追跡描画します。
       outCtx.fillStyle = '#FFFFFF';
       outCtx.fillRect(0, 0, finalW, finalH);
-      
+
       if (textPatternChars) {
         const charsArr = Array.from(textPatternChars);
         const actualSeparation = Math.max(1, Math.round(separation / scale)) * scale;
-        // 十分な数のシードを散布（オーバーサンプリングして隙間を減らす）
-        const seedCount = Math.floor((actualSeparation * finalH / (textPatternSize * textPatternSize)) * (textPatternDensity / 100) * 2.5);
-        
-        const stamps = [];
+        // スタンプが画面を埋めるために必要な、ユニークなルーツ（シード）の数
+        const seedCount = Math.floor((actualSeparation * finalH / (textPatternSize * textPatternSize)) * (textPatternDensity / 100) * 1.5);
+
+        // シードをY座標（行）ごとにグループ化
+        const seedsByY = {};
         for (let i = 0; i < seedCount; i++) {
-          let startX = (Math.random() * (actualSeparation * 1.5)) - (actualSeparation * 0.5);
-          let startY = Math.random() * finalH;
+          let y = Math.floor(Math.random() * finalH);
+          let x = Math.floor(Math.random() * finalW);
           let char = charsArr[Math.floor(Math.random() * charsArr.length)];
-          
+
           let color;
           if (textPatternColor === 'monochrome') {
-              color = '#000000';
+            color = '#000000';
           } else if (textPatternColor === 'grayscale') {
-              const v = Math.floor(Math.random() * 150); 
-              color = `rgb(${v},${v},${v})`;
+            const v = Math.floor(Math.random() * 150);
+            color = `rgb(${v},${v},${v})`;
           } else if (textPatternColor === 'neon') {
-              const hue = Math.floor(Math.random() * 360);
-              color = `hsl(${hue}, 100%, 50%)`;
-          } else { // random
-              const r = Math.floor(Math.random() * 200);
-              const g = Math.floor(Math.random() * 200);
-              const b = Math.floor(Math.random() * 200);
-              color = `rgb(${r},${g},${b})`;
+            const hue = Math.floor(Math.random() * 360);
+            color = `hsl(${hue}, 100%, 50%)`;
+          } else if (textPatternColor === 'pastel') {
+            const hue = Math.floor(Math.random() * 360);
+            color = `hsl(${hue}, 70%, 80%)`;
+          } else if (textPatternColor === 'autumn') {
+            const hue = Math.floor(Math.random() * 60);
+            color = `hsl(${hue}, 80%, 40%)`;
+          } else if (textPatternColor === 'ocean') {
+            const hue = 180 + Math.floor(Math.random() * 80);
+            color = `hsl(${hue}, 80%, 45%)`;
+          } else {
+            const r = Math.floor(Math.random() * 200);
+            const g = Math.floor(Math.random() * 200);
+            const b = Math.floor(Math.random() * 200);
+            color = `rgb(${r},${g},${b})`;
           }
-          
-          let curX = startX;
+
           let alpha = 0.8 + Math.random() * 0.2;
-          let loops = 0;
-          
-          // 左から右への追跡
-          while (curX < finalW + textPatternSize && loops < 2000) {
-            loops++;
-            // 画面内に入るスタンプだけ記録
-            if (curX > -textPatternSize) {
-              let z = 0;
-              let cx_int = Math.floor(curX);
-              let cy_int = Math.floor(startY);
-              if (cx_int >= 0 && cx_int < finalW && cy_int >= 0 && cy_int < finalH) {
-                z = finalDepthData[(cy_int * finalW + cx_int) * 4] / 255.0;
+
+          if (!seedsByY[y]) seedsByY[y] = [];
+          seedsByY[y].push({ x, char, color, alpha });
+        }
+
+        const stamps = [];
+        const same = new Int32Array(finalW);
+
+        for (const yStr of Object.keys(seedsByY)) {
+          const y = Number(yStr);
+
+          // Thimbleby の Symmetric Linking を行単位で実行
+          for (let x = 0; x < finalW; x++) same[x] = x;
+          for (let x = 0; x < finalW; x++) {
+            let z = finalDepthData[(y * finalW + x) * 4] / 255.0;
+            let d = (method === 'parallel') ? actualSeparation * (1 - depthFactor * z) : actualSeparation * (1 + depthFactor * z);
+            let left = Math.floor(x - d / 2);
+            let right = Math.floor(left + d);
+            if (left >= 0 && right < finalW) {
+              let l = left; while (same[l] !== l) l = same[l];
+              let r = right; while (same[r] !== r) r = same[r];
+              if (l !== r) {
+                if (l < r) same[r] = l; else same[l] = r;
               }
-              stamps.push({x: curX, y: startY, z: z, char: char, color: color, alpha: alpha});
             }
-            
-            // 次の描画位置（対応点）の計算
-            let z_for_d = 0;
-            let queryX = Math.floor(curX);
-            if (queryX >= 0 && queryX < finalW) {
-              z_for_d = finalDepthData[(Math.floor(startY) * finalW + queryX) * 4] / 255.0;
+          }
+
+          // リンクを完全に平坦化（ルート解決）
+          for (let x = 0; x < finalW; x++) {
+            let root = x; while (same[root] !== root) root = same[root];
+            same[x] = root;
+          }
+
+          // この行に散布されたシードをフラット化されたリンクに基づいて対応ピクセル（drawXs）に展開
+          const processedRoots = new Set();
+          for (const seed of seedsByY[y]) {
+            const root = same[seed.x];
+            if (processedRoots.has(root)) continue;
+            processedRoots.add(root);
+
+            const drawXs = [];
+            for (let x = 0; x < finalW; x++) {
+              if (same[x] === root) drawXs.push(x);
             }
-            
-            let d = 0;
-            if (method === 'parallel') {
-              d = actualSeparation * (1 - depthFactor * z_for_d);
-            } else {
-              d = actualSeparation * (1 + depthFactor * z_for_d);
-            }
-            curX += d;
+
+            const z = finalDepthData[(y * finalW + root) * 4] / 255.0;
+            stamps.push({ drawXs, y, z, char: seed.char, color: seed.color, alpha: seed.alpha });
           }
         }
-        
+
         // Z値順（奥から手前へ）ソートして、手前の文字が上に描画されるようにする
         stamps.sort((a, b) => a.z - b.z);
-        
+
         outCtx.font = `bold ${textPatternSize}px sans-serif`;
         outCtx.textAlign = 'center';
         outCtx.textBaseline = 'middle';
-        
+
         for (let s of stamps) {
           outCtx.fillStyle = s.color;
           outCtx.globalAlpha = s.alpha;
-          outCtx.fillText(s.char, s.x, s.y);
+          for (let drawX of s.drawXs) {
+            outCtx.fillText(s.char, drawX, s.y);
+          }
         }
         outCtx.globalAlpha = 1.0;
       }
@@ -363,8 +392,8 @@ function App() {
     // 合焦用ドット（● ●）の描画
     if (showGuideDots) {
       const actualSeparation = Math.max(1, Math.round(separation / scale)) * scale;
-      const dotRadius = Math.max(4, Math.floor(finalW * 0.008));
-      const dotY = Math.max(20, Math.floor(finalH * 0.05));
+      const dotRadius = guideDotSize;
+      const dotY = Math.max(20 + dotRadius, Math.floor(finalH * 0.05));
       const centerX = finalW / 2;
 
       outCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
@@ -910,7 +939,7 @@ function App() {
     const lastLineMetrics = ctx.measureText(lines[lines.length - 1]);
     const descent = lastLineMetrics.actualBoundingBoxDescent || (textFontSize * 0.25);
     const blockHeight = (lines.length - 1) * lineHeight + ascent + descent;
-    
+
     // 描画開始のY座標
     let currentY = (canvasH - blockHeight) / 2 + ascent;
 
@@ -935,7 +964,7 @@ function App() {
     if (!isPlaying && !wiggleEnabled) {
       triggerRender();
     }
-  }, [method, bgType, separation, depthFactor, noiseSize, wiggleEnabled, showGuideDots, isPlaying, triggerRender, textPatternChars, textPatternSize, textPatternDensity, textPatternColor]);
+  }, [method, bgType, separation, depthFactor, noiseSize, wiggleEnabled, showGuideDots, guideDotSize, isPlaying, triggerRender, textPatternChars, textPatternSize, textPatternDensity, textPatternColor]);
 
   // --- 再描画ループの状態管理 (Closureの罠を避けるためRefを使用) ---
   const loopStateRef = useRef({ isPlaying, depthSourceType, wiggleEnabled });
@@ -1196,17 +1225,36 @@ function App() {
 
           {bgType === 'text_pattern' && (
             <div className="mt-2" style={{ background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
+              <label className="mb-2" style={{ display: 'block' }}>文字のプリセット
+                <select
+                  onChange={e => {
+                    if (e.target.value) setTextPatternChars(e.target.value);
+                  }}
+                  style={{ width: '100%', marginTop: '4px', marginBottom: '8px', padding: '6px', borderRadius: '4px', border: '1px solid #4b5563', background: '#374151', color: 'white' }}
+                >
+                  <option value="">-- リストから選ぶ --</option>
+                  <option value="○□△✛×☆●■▲★">記号 (○□△✛×☆●■▲★)</option>
+                  <option value="あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん">ひらがな</option>
+                  <option value="アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン">カタカナ</option>
+                  <option value="ABCDEFGHIJKLMNOPQRSTUVWXYZ">アルファベット (大文字)</option>
+                  <option value="abcdefghijklmnopqrstuvwxyz">アルファベット (小文字)</option>
+                  <option value="0123456789">数字</option>
+                  <option value="♥♡♠♤♣♧♦♢">トランプ・星</option>
+                  <option value="☺☻☹😊😂😍😎😜😭🤔">顔文字</option>
+                  <option value="🍰🎂🍭🍫🍦🍩🍨🍔🍕🍟🍣🍱🍙">食べ物</option>
+                </select>
+              </label>
               <label className="mb-2" style={{ display: 'block' }}>散布する文字列
-                <textarea 
-                  value={textPatternChars} 
-                  onChange={e => setTextPatternChars(e.target.value)} 
-                  className="mt-1" 
-                  rows={2} 
+                <textarea
+                  value={textPatternChars}
+                  onChange={e => setTextPatternChars(e.target.value)}
+                  className="mt-1"
+                  rows={2}
                   style={{ width: '100%', padding: '6px', borderRadius: '4px', border: '1px solid #4b5563', background: '#374151', color: 'white' }}
                 />
               </label>
               <label style={{ display: 'block', marginTop: '8px' }}>文字の大きさ ({textPatternSize}px)
-                <input type="range" min="8" max="48" value={textPatternSize} onChange={e => setTextPatternSize(Number(e.target.value))} style={{ width: '100%' }} />
+                <input type="range" min="4" max="50" value={textPatternSize} onChange={e => setTextPatternSize(Number(e.target.value))} style={{ width: '100%' }} />
               </label>
               <label style={{ display: 'block', marginTop: '8px' }}>配置密度 ({textPatternDensity})
                 <input type="range" min="10" max="150" value={textPatternDensity} onChange={e => setTextPatternDensity(Number(e.target.value))} style={{ width: '100%' }} />
@@ -1214,6 +1262,9 @@ function App() {
               <label className="mt-2" style={{ display: 'block', marginTop: '8px' }}>彩色方法
                 <select value={textPatternColor} onChange={e => setTextPatternColor(e.target.value)} style={{ width: '100%', marginTop: '4px', padding: '6px', borderRadius: '4px', border: '1px solid #4b5563', background: '#374151', color: 'white' }}>
                   <option value="random">ランダムカラー</option>
+                  <option value="pastel">パレット (パステル)</option>
+                  <option value="autumn">パレット (秋色)</option>
+                  <option value="ocean">パレット (海・寒色)</option>
                   <option value="neon">ネオンカラー</option>
                   <option value="monochrome">単色 (黒)</option>
                   <option value="grayscale">グレースケール</option>
@@ -1276,6 +1327,12 @@ function App() {
               ガイドドットを表示 (● ●)
             </label>
           </Tooltip>
+          {showGuideDots && (
+            <label style={{ display: 'block', marginTop: '8px', paddingLeft: '26px' }}>
+              ドットの大きさ ({guideDotSize}px)
+              <input type="range" min="4" max="30" value={guideDotSize} onChange={e => setGuideDotSize(Number(e.target.value))} style={{ width: '100%' }} />
+            </label>
+          )}
         </div>
 
         {/* --- 深度マップ（立体の元）設定 --- */}
@@ -1326,12 +1383,12 @@ function App() {
           {depthMode === 'text' && (
             <div className="mt-2" style={{ marginBottom: '12px', background: 'rgba(255,255,255,0.05)', padding: '12px', borderRadius: '8px' }}>
               <label className="mb-2">テキストを入力
-                <textarea 
-                  value={depthText} 
-                  onChange={e => setDepthText(e.target.value)} 
-                  placeholder="文字を入力..." 
-                  className="mt-1 depth-text-area" 
-                  rows={3} 
+                <textarea
+                  value={depthText}
+                  onChange={e => setDepthText(e.target.value)}
+                  placeholder="文字を入力..."
+                  className="mt-1 depth-text-area"
+                  rows={3}
                 />
               </label>
               <label>サイズ ({textFontSize}px)
@@ -1477,10 +1534,10 @@ function App() {
       <main className="main-content">
         <div className="kanban">
           {/* 深度マッププレビュー */}
-          <DraggablePanel 
-            title="立体の形状 (深度マップ)" 
-            id="depth-panel-draggable" 
-            isMobile={isMobileView} 
+          <DraggablePanel
+            title="立体の形状 (深度マップ)"
+            id="depth-panel-draggable"
+            isMobile={isMobileView}
             className="depth-panel"
             initialPos={{ x: 0, y: 0 }}
             initialSize={{ width: 440, height: 'auto' }}
@@ -1491,10 +1548,10 @@ function App() {
           </DraggablePanel>
 
           {/* 生成結果プレビュー（PCではホバー時に案内を表示） */}
-          <DraggablePanel 
-            title="完成したステレオグラム" 
-            id="output-panel-draggable" 
-            isMobile={isMobileView} 
+          <DraggablePanel
+            title="完成したステレオグラム"
+            id="output-panel-draggable"
+            isMobile={isMobileView}
             className="output-panel"
             initialPos={{ x: 472, y: 0 }}
             initialSize={{ width: 640, height: 'auto' }}
