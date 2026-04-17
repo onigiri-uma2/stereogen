@@ -3,7 +3,7 @@ import { generateStereogram, applyWiggleToDepthMap } from '../stereogram';
 
 export function useStereoLoop({
   method, bgType, noiseSize, separation, depthFactor, showGuideDots, guideDotSize,
-  textPatternChars, textPatternSize, textPatternDensity, textPatternColor,
+  textPatternChars, textPatternSize, textPatternDensity, textureColor,
   depthMode, depthSourceType, setDepthSourceType,
   defaultShape, animatedShape,
   isPlaying, setIsPlaying, wiggleEnabled,
@@ -491,7 +491,7 @@ export function useStereoLoop({
     if (!isPlaying && !wiggleEnabled) {
       triggerRender();
     }
-  }, [method, bgType, separation, depthFactor, noiseSize, wiggleEnabled, showGuideDots, guideDotSize, isPlaying, triggerRender, textPatternChars, textPatternSize, textPatternDensity, textPatternColor]);
+  }, [method, bgType, separation, depthFactor, noiseSize, wiggleEnabled, showGuideDots, guideDotSize, isPlaying, triggerRender, textPatternChars, textPatternSize, textPatternDensity, textureColor]);
 
   // 全画面表示の同期
   useEffect(() => {
@@ -547,7 +547,7 @@ export function useStereoLoop({
     const h = depthCanvas.height;
     if (w === 0 || h === 0) return;
 
-    const scale = (bgType === 'color' || bgType === 'black_white') ? noiseSize : 1;
+    const scale = (bgType === 'noise') ? noiseSize : 1;
     const effectiveW = Math.max(1, Math.floor(w / scale));
     const effectiveH = Math.max(1, Math.floor(h / scale));
     const finalW = effectiveW * scale;
@@ -586,21 +586,21 @@ export function useStereoLoop({
           let char = charsArr[Math.floor(Math.random() * charsArr.length)];
 
           let color;
-          if (textPatternColor === 'monochrome') {
+          if (textureColor === 'monochrome') {
             color = '#000000';
-          } else if (textPatternColor === 'grayscale') {
+          } else if (textureColor === 'grayscale') {
             const v = Math.floor(Math.random() * 150);
             color = `rgb(${v},${v},${v})`;
-          } else if (textPatternColor === 'neon') {
+          } else if (textureColor === 'neon') {
             const hue = Math.floor(Math.random() * 360);
             color = `hsl(${hue}, 100%, 50%)`;
-          } else if (textPatternColor === 'pastel') {
+          } else if (textureColor === 'pastel') {
             const hue = Math.floor(Math.random() * 360);
             color = `hsl(${hue}, 70%, 80%)`;
-          } else if (textPatternColor === 'autumn') {
+          } else if (textureColor === 'autumn') {
             const hue = Math.floor(Math.random() * 60);
             color = `hsl(${hue}, 80%, 40%)`;
-          } else if (textPatternColor === 'ocean') {
+          } else if (textureColor === 'ocean') {
             const hue = 180 + Math.floor(Math.random() * 80);
             color = `hsl(${hue}, 80%, 45%)`;
           } else {
@@ -675,8 +675,15 @@ export function useStereoLoop({
             processedRoots.add(root);
 
             const drawXs = [];
+            let lastDrawX = -10000;
+            const threshold = Math.max(textPatternSize * 0.5, actualSeparation * 0.1);
             for (let x = 0; x < finalW; x++) {
-              if (same[x] === root) drawXs.push(x);
+              if (same[x] === root) {
+                if (x - lastDrawX >= threshold) {
+                  drawXs.push(x);
+                  lastDrawX = x;
+                }
+              }
             }
 
             const z = finalDepthData[(y * finalW + root) * 4] / 255.0;
@@ -713,7 +720,7 @@ export function useStereoLoop({
         separation: Math.max(1, Math.round(separation / scale)),
         depthFactor,
         method,
-        noiseType: bgType === 'color' ? 'color' : 'grayscale',
+        noiseType: textureColor,
         patternData,
         patternWidth: pW,
         patternHeight: pH,
@@ -745,7 +752,7 @@ export function useStereoLoop({
       outCtx.beginPath(); outCtx.arc(centerX - actualSeparation / 2, dotY, dotRadius, 0, Math.PI * 2); outCtx.fill();
       outCtx.beginPath(); outCtx.arc(centerX + actualSeparation / 2, dotY, dotRadius, 0, Math.PI * 2); outCtx.fill();
     }
-  }, [bgType, noiseSize, separation, depthFactor, method, showGuideDots, guideDotSize, depthCanvasRef, patternCanvasRef, outputCanvasRef, loopStateRef, textPatternChars, textPatternSize, textPatternDensity, textPatternColor]);
+  }, [bgType, noiseSize, separation, depthFactor, method, showGuideDots, guideDotSize, depthCanvasRef, patternCanvasRef, outputCanvasRef, loopStateRef, textPatternChars, textPatternSize, textPatternDensity, textureColor]);
 
   useLayoutEffect(() => { processRef.current = processFrame; });
   useLayoutEffect(() => { animatedDrawRef.current = drawAnimatedDepthMap; });

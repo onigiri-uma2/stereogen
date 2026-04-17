@@ -24,7 +24,7 @@ function getNoiseHash(x, y, seed) {
  */
 function generateSmoothStereogram(width, height, options, outputFrame, rowZ, y) {
   const { separation, depthFactor, method, patternData, patternWidth: pW, patternHeight: pH, noiseType, seed } = options;
-  const isColorNoise = noiseType === 'color';
+  const colorMode = noiseType; // Renamed for clarity within the function
 
   const getInterpolatedZ = (cx) => {
     const x1 = Math.floor(cx);
@@ -78,18 +78,11 @@ function generateSmoothStereogram(width, height, options, outputFrame, rowZ, y) 
       const h1 = getNoiseHash(fx1, y, seed);
       const h2 = getNoiseHash(fx2, y, seed);
 
-      if (isColorNoise) {
-        const r1 = h1 & 0xFF, g1 = (h1 >>> 8) & 0xFF, b1 = (h1 >>> 16) & 0xFF;
-        const r2 = h2 & 0xFF, g2 = (h2 >>> 8) & 0xFF, b2 = (h2 >>> 16) & 0xFF;
-        r = r1 * (1 - ffrac) + r2 * ffrac;
-        g = g1 * (1 - ffrac) + g2 * ffrac;
-        b = b1 * (1 - ffrac) + b2 * ffrac;
-      } else {
-        const v1 = (h1 & 0x1) ? 255 : 0;
-        const v2 = (h2 & 0x1) ? 255 : 0;
-        const val = v1 * (1 - ffrac) + v2 * ffrac;
-        r = g = b = val;
-      }
+      const c1 = getNoiseColor(h1, colorMode);
+      const c2 = getNoiseColor(h2, colorMode);
+      r = c1.r * (1 - ffrac) + c2.r * ffrac;
+      g = c1.g * (1 - ffrac) + c2.g * ffrac;
+      b = c1.b * (1 - ffrac) + c2.b * ffrac;
     }
 
     const outIdx = (y * width + x) * 4;
@@ -97,6 +90,59 @@ function generateSmoothStereogram(width, height, options, outputFrame, rowZ, y) 
     outputFrame[outIdx + 1] = g;
     outputFrame[outIdx + 2] = b;
     outputFrame[outIdx + 3] = a;
+  }
+}
+
+/**
+ * HSLカラーをRGBに変換するヘルパー
+ */
+function hslToRgb(h, s, l) {
+  h /= 360; s /= 100; l /= 100;
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const hue2rgb = (t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    r = hue2rgb(h + 1 / 3);
+    g = hue2rgb(h);
+    b = hue2rgb(h - 1 / 3);
+  }
+  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+}
+
+/**
+ * ハッシュ値と彩色モードに基づいてドットの色を決定する
+ */
+function getNoiseColor(h, mode) {
+  if (mode === 'random' || mode === 'color') {
+    return { r: h & 0xFF, g: (h >>> 8) & 0xFF, b: (h >>> 16) & 0xFF };
+  } else if (mode === 'grayscale') {
+    const v = (h >>> 8) & 0xFF;
+    return { r: v, g: v, b: v };
+  } else if (mode === 'pastel') {
+    const hue = (h % 360 + 360) % 360;
+    return hslToRgb(hue, 70, 80);
+  } else if (mode === 'autumn') {
+    const hue = (h % 60 + 60) % 60;
+    return hslToRgb(hue, 80, 40);
+  } else if (mode === 'ocean') {
+    const hue = 180 + ((h % 80 + 80) % 80);
+    return hslToRgb(hue, 80, 45);
+  } else if (mode === 'neon') {
+    const hue = (h % 360 + 360) % 360;
+    return hslToRgb(hue, 100, 50);
+  } else { // monochrome or black_white
+    const val = (h & 0x1) ? 255 : 0;
+    return { r: val, g: val, b: val };
   }
 }
 
@@ -109,7 +155,7 @@ function generateSmoothStereogram(width, height, options, outputFrame, rowZ, y) 
  */
 function generateClassicStereogram(width, height, options, outputFrame, rowZ, same, y) {
   const { separation, depthFactor, method, patternData, patternWidth: pW, patternHeight: pH, noiseType, seed } = options;
-  const isColorNoise = noiseType === 'color';
+  const colorMode = noiseType;
 
   for (let x = 0; x < width; x++) {
     const z = rowZ[x];
@@ -155,13 +201,8 @@ function generateClassicStereogram(width, height, options, outputFrame, rowZ, sa
     } else {
       // ランダムドットを使用する場合
       const h = getNoiseHash(stableX, y, seed);
-      if (isColorNoise) {
-        // 24bitカラー値をRGBに分配
-        r = h & 0xFF; g = (h >>> 8) & 0xFF; b = (h >>> 16) & 0xFF;
-      } else {
-        // 最下位ビットを使って白(255)か黒(0)を決定
-        const val = (h & 0x1) ? 255 : 0; r = val; g = val; b = val;
-      }
+      const color = getNoiseColor(h, colorMode);
+      r = color.r; g = color.g; b = color.b;
     }
 
     const outIdx = (y * width + x) * 4;

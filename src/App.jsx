@@ -27,8 +27,8 @@ function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false); // モバイル向けサイドバーの開閉
   const [isMobileView, setIsMobileView] = useState(window.innerWidth <= 768); // スマホ表示判定 (768px基準)
   const [fullscreenView, setFullscreenView] = useState(false); // 全画面表示モード
-  const [bgType, setBgType] = useState('black_white'); // 背景の種類（白黒ドット、カラードット、画像パターン）
-  const [noiseSize, setNoiseSize] = useState(1); // ランダムドットの大きさ(px)
+  const [bgType, setBgType] = useState('noise'); // 背景の種類（砂嵐、画像パターン、文字パターン）
+  const [noiseSize, setNoiseSize] = useState(5); // ランダムドットの大きさ(px)
   const [separation, setSeparation] = useState(150); // 左右の基準視差(ピクセル数)
   const [depthFactor, setDepthFactor] = useState(0.33); // 奥行きの強調度
   const [showGuideDots, setShowGuideDots] = useState(true); // 合焦を助けるガイドドットの表示
@@ -38,7 +38,7 @@ function App() {
   const [textPatternChars, setTextPatternChars] = useState('○□△✛×☆●■▲★');
   const [textPatternSize, setTextPatternSize] = useState(16);
   const [textPatternDensity, setTextPatternDensity] = useState(50);
-  const [textPatternColor, setTextPatternColor] = useState('random');
+  const [textureColor, setTextureColor] = useState('random');
 
 
   // --- 深度マップ（3Dの元データ）のソース設定 ---
@@ -73,14 +73,14 @@ function App() {
 
   const { isRecording, startRecording, stopRecording, downloadImage } = useMediaExport(outputCanvasRef);
 
-  
+
   const {
     handleDepthUpload,
     handlePatternUpload,
     applyAiFiltersAndDraw
   } = useStereoLoop({
     method, bgType, noiseSize, separation, depthFactor, showGuideDots, guideDotSize,
-    textPatternChars, textPatternSize, textPatternDensity, textPatternColor,
+    textPatternChars, textPatternSize, textPatternDensity, textureColor,
     depthMode, depthSourceType, setDepthSourceType,
     defaultShape, animatedShape,
     isPlaying, setIsPlaying, wiggleEnabled,
@@ -143,19 +143,19 @@ function App() {
         <ViewSettings method={method} setMethod={setMethod} />
 
         {/* --- 背景・模様設定 --- */}
-        <TextureSettings 
+        <TextureSettings
           bgType={bgType} setBgType={setBgType}
           textPatternChars={textPatternChars} setTextPatternChars={setTextPatternChars}
           textPatternSize={textPatternSize} setTextPatternSize={setTextPatternSize}
           textPatternDensity={textPatternDensity} setTextPatternDensity={setTextPatternDensity}
-          textPatternColor={textPatternColor} setTextPatternColor={setTextPatternColor}
+          textureColor={textureColor} setTextureColor={setTextureColor}
           handlePatternUpload={handlePatternUpload}
           noiseSize={noiseSize} setNoiseSize={setNoiseSize}
         />
         <canvas ref={patternCanvasRef} style={{ display: 'none' }} />
 
         {/* --- 詳細パラメータ --- */}
-        <RenderSettings 
+        <RenderSettings
           outputResolution={outputResolution} setOutputResolution={setOutputResolution}
           separation={separation} setSeparation={setSeparation}
           depthFactor={depthFactor} setDepthFactor={setDepthFactor}
@@ -164,7 +164,7 @@ function App() {
         />
 
         {/* --- 深度マップ（立体の元）設定 --- */}
-        <DepthSourceSettings 
+        <DepthSourceSettings
           depthMode={depthMode} setDepthMode={setDepthMode}
           defaultShape={defaultShape} setDefaultShape={setDefaultShape}
           animatedShape={animatedShape} setAnimatedShape={setAnimatedShape}
