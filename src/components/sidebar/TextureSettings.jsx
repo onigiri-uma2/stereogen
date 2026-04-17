@@ -2,6 +2,13 @@ import React from 'react';
 import { Image as ImageIcon, Upload } from 'lucide-react';
 import Tooltip from '../Tooltip';
 
+/**
+ * ステレオグラムの表面に描画するテクスチャ（模様）の種類や詳細を設定するコンポーネント
+ * 
+ * 背景の種類 (bgType) が 'text_pattern'（文字スタンプによる生成）か、
+ * それ以外（1次元スライス走査によるドット/画像生成）かで、UIの項目と描画エンジン側の
+ * 処理ロジックが大きく分岐します。
+ */
 export default function TextureSettings({
   bgType, setBgType,
   textPatternChars, setTextPatternChars,

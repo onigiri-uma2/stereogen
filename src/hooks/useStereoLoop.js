@@ -29,10 +29,17 @@ export function useStereoLoop({
     return { w: sw, h: sh };
   }, [outputResolution]);
 
+  /**
+   * 画像をアスペクト比を維持したまま Canvas に描画するヘルパー
+   * 背景を黒で塗りつぶした後、中央寄せ（Object-fit: contain 相当）で描画します。
+   */
   const drawAspectImage = useCallback((ctx, img, canvasW, canvasH, sourceW, sourceH) => {
+    // 縦横どちらの比率に合わせるべきかを計算
     const scale = Math.min(canvasW / sourceW, canvasH / sourceH);
     const rw = sourceW * scale;
     const rh = sourceH * scale;
+
+    // 背景をクリアしてから描画
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, canvasW, canvasH);
     ctx.drawImage(img, (canvasW - rw) / 2, (canvasH - rh) / 2, rw, rh);
@@ -42,17 +49,27 @@ export function useStereoLoop({
     if (processRef.current) processRef.current();
   }, []);
 
+  /**
+   * 深度マップ（Canvas）に対して、コントラスト調整と階調化（ポスタライズ）を適用します。
+   * - depthContrast: ガンマ補正のように累算(pow)を用いて、暗部や明部の強調度合を変えます。
+   * - depthLayers: 深度を段階的に制限することで、段々畑のような立体効果を作成できます。
+   */
   const applyDepthFiltersToCanvas = useCallback((ctx, w, h) => {
     if (depthLayers >= 256 && depthContrast === 1.0) return;
     const imgData = ctx.getImageData(0, 0, w, h);
     const data = imgData.data;
     for (let i = 0; i < data.length; i += 4) {
+      // RGBの平均値を輝度(0.0 - 1.0)として取得
       let val = (data[i] + data[i + 1] + data[i + 2]) / 3 / 255;
+      
+      // コントラスト（ガンマ補正代わり）の適用
       if (depthContrast !== 1.0) val = Math.pow(val, depthContrast);
+      
       let finalVal;
       if (depthLayers >= 256) {
         finalVal = Math.floor(val * 255);
       } else {
+        // 階調化ロジック: 指定されたステップ数に丸める
         let quant = Math.round(val * (depthLayers - 1)) / (depthLayers - 1);
         finalVal = Math.floor(quant * 255);
       }
@@ -61,12 +78,17 @@ export function useStereoLoop({
     ctx.putImageData(imgData, 0, 0);
   }, [depthLayers, depthContrast]);
 
+  /**
+   * AI（Depth-Anything-V2）から返された生の数値データ（float）を正規化し、フィルタを適用して Canvas に描画します。
+   * モデルの出力値は輝度ではないため、画面内の最小値と最大値を使って 0-255 の範囲に正規化しています。
+   */
   const applyAiFiltersAndDraw = useCallback(() => {
     if (!aiRawDataRef.current || !depthCanvasRef.current) return;
     const { data, width: rawW, height: rawH } = aiRawDataRef.current;
 
     const channels = Math.round(data.length / (rawW * rawH)) || 1;
     let min = Infinity, max = -Infinity;
+    // 最小値と最大値を走査
     for (let i = 0; i < rawW * rawH; i++) {
       const val = data[i * channels];
       if (val < min) min = val;

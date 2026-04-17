@@ -2,6 +2,12 @@ import React from 'react';
 import { Settings } from 'lucide-react';
 import Tooltip from '../Tooltip';
 
+/**
+ * 視点合わせの方式（平行法・交差法）を選択するコンポーネント
+ * 
+ * ステレオグラムの生成時に視差を「引く（平行法）」か「足す（交差法）」かを切り替えることで、
+ * 視点合わせの得意・不得意に合わせて立体の浮き出し方を調整します。
+ */
 export default function ViewSettings({ method, setMethod }) {
   return (
     <div className="control-group">

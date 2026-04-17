@@ -12,7 +12,11 @@ export function useMediaExport(outputCanvasRef) {
     const canvas = outputCanvasRef.current;
     if (!canvas) return;
     const stream = canvas.captureStream(30);
+    // 録画設定 (ビットレート 20Mbpsで高画質を確保)
     const options = { mimeType: 'video/webm', videoBitsPerSecond: 20000000 };
+    
+    // ブラウザごとの互換性を保つためのコーデックのフォールバック機構
+    // 高圧縮・高画質な vp9 を優先し、非対応（古いブラウザや一部のSafari等）なら vp8 にフォールバックします。
     if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
       options.mimeType = 'video/webm;codecs=vp9';
     } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8')) {

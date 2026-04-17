@@ -2,7 +2,13 @@
  * ステレオグラム生成エンジン
  */
 
-// ノイズ生成用のヘルパー関数
+/**
+ * 擬似乱数ハッシュ関数 (MurmurHash風)
+ * 座標 (x, y) とシード値から一意な数値を生成します。
+ * Math.imul を使用することで、32ビット整数のオーバーフロー挙動を
+ * 異なる JavaScript エンジン（ブラウザ）間で一貫させ、同じシードなら必ず
+ * 同じドットパターンが生成されるようにしています。
+ */
 function getNoiseHash(x, y, seed) {
   let h = Math.imul(x ^ 0x1234567, 0x9E3779B1) + Math.imul(y ^ 0x7654321, 0x85EBCA77) + Math.imul(seed ^ 0xABCDEF, 0xC2B2AE35);
   h ^= h >>> 13; h = Math.imul(h, 0xC2B2AE3D); h ^= h >>> 16;
@@ -141,15 +147,19 @@ function generateClassicStereogram(width, height, options, outputFrame, rowZ, sa
     }
 
     if (patternData && pW && pH) {
+      // 画像パターンを使用する場合
       const pX = stableX % pW;
       const pY = y % pH;
       const pIdx = (pY * pW + pX) * 4;
       r = patternData[pIdx]; g = patternData[pIdx + 1]; b = patternData[pIdx + 2]; a = patternData[pIdx + 3];
     } else {
+      // ランダムドットを使用する場合
       const h = getNoiseHash(stableX, y, seed);
       if (isColorNoise) {
+        // 24bitカラー値をRGBに分配
         r = h & 0xFF; g = (h >>> 8) & 0xFF; b = (h >>> 16) & 0xFF;
       } else {
+        // 最下位ビットを使って白(255)か黒(0)を決定
         const val = (h & 0x1) ? 255 : 0; r = val; g = val; b = val;
       }
     }
