@@ -13,8 +13,13 @@ import DepthSourceSettings from './components/sidebar/DepthSourceSettings';
 import './App.css';
 
 /**
- * StereoGen: ステレオグラム生成アプリ
- * 2D画像、動画、テキスト、またはAIによる深度推定からステレオグラムを生成します。
+ * StereoGen: ステレオグラム生成アプリケーションのメイン・エントリーポイント
+ * 
+ * 【アーキテクチャ概要】
+ * - `App.jsx`: 全体のステート（UIの状態、設定値）を保持し、各UIコンポーネント（サイドバーなど）に分配する Container の役割を持ちます。
+ * - `useStereoLoop.js`: requestAnimationFrame を用いた描画エンジンの心臓部であり、実際の Canvas への描画処理をカプセル化しています。
+ * - `useAiDepthWorker.js`: WebWorker を用いて Hugging Face (ONNX Web) の AI深度推定モデルを非同期に実行する処理をカプセル化しています。
+ * - `useMediaExport.js`: 完成した Canvas の静止画保存や、MediaRecorder を用いた WebM 動画のエクスポート処理を担当します。
  */
 function App() {
   // --- 基本的なUI状態 ---

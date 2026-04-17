@@ -237,6 +237,10 @@ export function useStereoLoop({
     ctx.putImageData(imgData, 0, 0);
   }, [getTargetDimensions, defaultShape, depthCanvasRef]);
 
+  /**
+   * プリセットのアニメーションシェイプ（ウェーブ、パルスなど）の深度マップを Canvas に描画します。
+   * 時間 (time) に応じて動的に形状が変化します。
+   */
   const drawAnimatedDepthMap = useCallback((time) => {
     const canvas = depthCanvasRef.current;
     if (!canvas) return;
@@ -356,6 +360,10 @@ export function useStereoLoop({
     ctx.putImageData(imgData, 0, 0);
   }, [getTargetDimensions, animatedShape, depthCanvasRef]);
 
+  /**
+   * ユーザー入力テキスト（複数行対応）から深度マップを生成し、Canvas に描画します。
+   * テキストのアウトラインぼかし（textSoftness）を用いて、ドロップシャドウや丸みのある立体感を演出します。
+   */
   const drawTextDepthMap = useCallback((time = 0) => {
     const canvas = depthCanvasRef.current;
     if (!canvas) return;
@@ -435,7 +443,7 @@ export function useStereoLoop({
   useEffect(() => {
     if (depthSourceType === 'video' && videoRef.current) {
       if (isPlaying) {
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
       } else {
         videoRef.current.pause();
       }
@@ -593,7 +601,7 @@ export function useStereoLoop({
           const y = Number(yStr);
 
           // ====================================================================================
-          // 【核心】ThimblebyのSymmetric Linking（対象リンクアルゴリズム）の適用
+          // ThimblebyのSymmetric Linking（対象リンクアルゴリズム）の適用
           // 従来のピクセル単位のサンプリングとは異なり、「文字（オブジェクト）がどの深さに描画されるべきか」
           // を横方向のピクセル拘束条件から逆算します。
           // これにより、文字スタンプを複数描画した際にも、ステレオグラムの視差整合性が担保されます。
@@ -601,26 +609,26 @@ export function useStereoLoop({
 
           // 初期化: 各ピクセルは自分自身（root）を指す
           for (let x = 0; x < finalW; x++) same[x] = x;
-          
+
           // 視差の拘束条件を伝播させる
           for (let x = 0; x < finalW; x++) {
             // 現在のピクセルの深さZ（0.0 ~ 1.0）
             let z = finalDepthData[(y * finalW + x) * 4] / 255.0;
-            
+
             // 視差(d)を計算。平行法(parallel)と交差法(crosseye)で計算を分離。
             // depthFactor は視差の強度（ユーザー設定）。
             let d = (method === 'parallel') ? actualSeparation * (1 - depthFactor * z) : actualSeparation * (1 + depthFactor * z);
-            
+
             // 左右の対応するピクセル位置を計算
             let left = Math.floor(x - d / 2);
             let right = Math.floor(left + d);
-            
+
             // 画面内に収まるペアのみをリンク（結合）する
             if (left >= 0 && right < finalW) {
               // Union-Find木の構造：現在のrootを探す
               let l = left; while (same[l] !== l) l = same[l];
               let r = right; while (same[r] !== r) r = same[r];
-              
+
               // 異なるグループに属している場合、同一のグループとして統合する
               if (l !== r) {
                 if (l < r) same[r] = l; else same[l] = r;
@@ -791,8 +799,8 @@ export function useStereoLoop({
     if (file.type.startsWith('video/')) {
       setDepthSourceType('video');
       if (videoRef.current) {
-         videoRef.current.pause();
-         videoRef.current.removeAttribute('src'); // unload previous
+        videoRef.current.pause();
+        videoRef.current.removeAttribute('src'); // unload previous
       }
       videoRef.current = document.createElement('video');
       videoRef.current.src = url;
