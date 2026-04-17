@@ -592,31 +592,55 @@ export function useStereoLoop({
         for (const yStr of Object.keys(seedsByY)) {
           const y = Number(yStr);
 
-          // Thimbleby Symmetric Linking
+          // ====================================================================================
+          // 【核心】ThimblebyのSymmetric Linking（対象リンクアルゴリズム）の適用
+          // 従来のピクセル単位のサンプリングとは異なり、「文字（オブジェクト）がどの深さに描画されるべきか」
+          // を横方向のピクセル拘束条件から逆算します。
+          // これにより、文字スタンプを複数描画した際にも、ステレオグラムの視差整合性が担保されます。
+          // ====================================================================================
+
+          // 初期化: 各ピクセルは自分自身（root）を指す
           for (let x = 0; x < finalW; x++) same[x] = x;
+          
+          // 視差の拘束条件を伝播させる
           for (let x = 0; x < finalW; x++) {
+            // 現在のピクセルの深さZ（0.0 ~ 1.0）
             let z = finalDepthData[(y * finalW + x) * 4] / 255.0;
+            
+            // 視差(d)を計算。平行法(parallel)と交差法(crosseye)で計算を分離。
+            // depthFactor は視差の強度（ユーザー設定）。
             let d = (method === 'parallel') ? actualSeparation * (1 - depthFactor * z) : actualSeparation * (1 + depthFactor * z);
+            
+            // 左右の対応するピクセル位置を計算
             let left = Math.floor(x - d / 2);
             let right = Math.floor(left + d);
+            
+            // 画面内に収まるペアのみをリンク（結合）する
             if (left >= 0 && right < finalW) {
+              // Union-Find木の構造：現在のrootを探す
               let l = left; while (same[l] !== l) l = same[l];
               let r = right; while (same[r] !== r) r = same[r];
+              
+              // 異なるグループに属している場合、同一のグループとして統合する
               if (l !== r) {
                 if (l < r) same[r] = l; else same[l] = r;
               }
             }
           }
 
-          // Resolve roots
+          // リンクの完全な平坦化（ルート解決）
+          // 各ピクセルが最終的にどの「ルートピクセル」に紐づくかを解決し、直接参照できるようにする
           for (let x = 0; x < finalW; x++) {
             let root = x; while (same[root] !== root) root = same[root];
             same[x] = root;
           }
 
+          // この行に出現する文字シードを、解決されたルートに集約。
+          // 複数のピクセルが同じルートを持つ場合、1つの文字がリピートして描画される（視差の形成）
           const processedRoots = new Set();
           for (const seed of seedsByY[y]) {
             const root = same[seed.x];
+            // 既に同じルートのグループが処理済みならスキップ
             if (processedRoots.has(root)) continue;
             processedRoots.add(root);
 
@@ -630,6 +654,7 @@ export function useStereoLoop({
           }
         }
 
+        // Z値順（奥から手前）にソートして、手前の文字が上に描画されるようにする
         stamps.sort((a, b) => a.z - b.z);
 
         outCtx.font = `bold ${textPatternSize}px sans-serif`;
@@ -697,7 +722,15 @@ export function useStereoLoop({
   useLayoutEffect(() => { getDimensionsRef.current = getTargetDimensions; });
   useLayoutEffect(() => { textDrawRef.current = drawTextDepthMap; });
 
-  // ループ
+  // ====================================================================================
+  // メイン描画ループ (requestAnimationFrame)
+  // 
+  // 【クロージャの罠についての注意書き】
+  // Reactの `useEffect` 内で `requestAnimationFrame` のループを回す際、ループ内でステート
+  // （isPlayingなど）を直接参照すると、初回実行時の古いクロージャ値に束縛され一生更新されません。
+  // それを防ぐため、常に最新の値を持つ `loopStateRef` および最新の関数参照を持つ
+  // 各種 `processRef` や `animatedDrawRef` にアクセスすることで安全にループを継続しています。
+  // ====================================================================================
   useEffect(() => {
     let isSubscribed = true;
     lastFrameTimeRef.current = performance.now();

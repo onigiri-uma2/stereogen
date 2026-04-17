@@ -13,6 +13,10 @@ export function useAiDepthWorker({ isMobileView, onInferenceComplete }) {
 
   /**
    * AIモデルがブラウザのCache APIに保存されているか確認する
+   * 
+   * ONNX Runtime Web は初回実行時に HuggingFace からモデル（約100MB）をダウンロードし、
+   * Cache API（'transformers-cache'）にキャッシュします。
+   * オフライン時やリロード時にユーザーへ不必要な「ダウンロード警告」を出さないよう事前にチェックします。
    */
   const checkIfModelCached = async () => {
     try {
@@ -28,7 +32,10 @@ export function useAiDepthWorker({ isMobileView, onInferenceComplete }) {
   };
 
   /**
-   * AIワーカーからのメッセージ処理
+   * AIワーカー（worker.js）からのメッセージ（通信）処理
+   * 
+   * メインスレッド（UI）をブロックせずに重い推論タスクやモデルのダウンロードを
+   * バックグラウンドで実行し、進捗状況（progress）や結果（result）を受け取ります。
    */
   const handleWorkerMessage = useCallback((e) => {
     const { status, progress, result, error, info } = e.data;
@@ -83,7 +90,10 @@ export function useAiDepthWorker({ isMobileView, onInferenceComplete }) {
   }, [onInferenceComplete]);
 
   /**
-   * workerの初期化と後始末
+   * WebWorkerの初期化と後始末（コンポーネントマウント時）
+   * 
+   * Viteの機能 `new Worker(new URL(..., import.meta.url))` を利用し、
+   * 別スレッドで `worker.js` を初期化します。
    */
   useEffect(() => {
     workerRef.current = new Worker(new URL('../worker.js', import.meta.url), { type: 'module' });

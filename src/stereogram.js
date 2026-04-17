@@ -10,7 +10,11 @@ function getNoiseHash(x, y, seed) {
 }
 
 /**
- * 高品質（平滑化）モード: トレースバック方式
+ * 高品質（平滑化）モード: トレースバック・レイキャスティング方式
+ * 
+ * 元の2D位置から視線に沿って光線を飛ばし、対象のZ（深度）に当たる位置を逆算する方式です。
+ * 従来の単純なピクセルサンプリングで発生しやすい「ギザギザ」を軽減できるため、
+ * 文字などの境界が滑らかに描画されます（サブピクセル単位でサンプリングを行います）。
  */
 function generateSmoothStereogram(width, height, options, outputFrame, rowZ, y) {
   const { separation, depthFactor, method, patternData, patternWidth: pW, patternHeight: pH, noiseType, seed } = options;
@@ -91,7 +95,11 @@ function generateSmoothStereogram(width, height, options, outputFrame, rowZ, y) 
 }
 
 /**
- * 通常モード: 対称リンク構造 (Symmetric Thimbleby Linking)
+ * 通常（Classic）モード: 対称リンク構造 (Symmetric Thimbleby Linking)
+ * 
+ * 最も伝統的かつ高速なステレオグラムの生成アルゴリズムです。ピクセル間に「結びつき（Link）」
+ * の拘束条件を設定し、Union-Find木を用いて同じ色になるべきピクセル群をグループ化します。
+ * 隠面消去（Hidden Surface Removal）も部分的に自然に処理できる特性を持ちます。
  */
 function generateClassicStereogram(width, height, options, outputFrame, rowZ, same, y) {
   const { separation, depthFactor, method, patternData, patternWidth: pW, patternHeight: pH, noiseType, seed } = options;
@@ -124,6 +132,9 @@ function generateClassicStereogram(width, height, options, outputFrame, rowZ, sa
     let root = x; while (same[root] !== root) root = same[root];
     let r, g, b, a = 255;
 
+    // --- パターン（色）の決定 ---
+    // rootピクセルが確定したため、このグループ全体に適用する色（シード色）を決定します。
+    // 背景（深度 = 0）の場合は、周期ごとにノイズが固定されるようにパターン幅でモジュロをとります。
     let stableX = root;
     if (rowZ[root] === 0) {
       stableX = root % separation;
