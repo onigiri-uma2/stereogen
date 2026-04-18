@@ -1,6 +1,7 @@
 import React from 'react';
 import { Image as ImageIcon, Upload } from 'lucide-react';
 import Tooltip from '../Tooltip';
+import FontSelect from './FontSelect';
 
 /**
  * ステレオグラムの表面に描画するテクスチャ（模様）の種類や詳細を設定するコンポーネント
@@ -14,6 +15,7 @@ export default function TextureSettings({
   textPatternChars, setTextPatternChars,
   textPatternSize, setTextPatternSize,
   textPatternDensity, setTextPatternDensity,
+  textPatternFontFamily, setTextPatternFontFamily,
   textureColor, setTextureColor,
   handlePatternUpload,
   noiseSize, setNoiseSize
@@ -70,6 +72,9 @@ export default function TextureSettings({
               </label>
               <label style={{ display: 'block', marginTop: '8px' }}>配置密度 ({textPatternDensity})
                 <input type="range" min="10" max="150" value={textPatternDensity} onChange={e => setTextPatternDensity(Number(e.target.value))} style={{ width: '100%' }} />
+              </label>
+              <label style={{ display: 'block', marginTop: '8px' }}>フォント
+                <FontSelect value={textPatternFontFamily} onChange={e => setTextPatternFontFamily(e.target.value)} />
               </label>
             </>
           )}

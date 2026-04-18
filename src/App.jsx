@@ -38,6 +38,7 @@ function App() {
   const [textPatternChars, setTextPatternChars] = useState('○□△✛×☆●■▲★');
   const [textPatternSize, setTextPatternSize] = useState(16);
   const [textPatternDensity, setTextPatternDensity] = useState(50);
+  const [textPatternFontFamily, setTextPatternFontFamily] = useState('sans-serif');
   const [textureColor, setTextureColor] = useState('random');
 
 
@@ -56,7 +57,7 @@ function App() {
   // --- テキストモードに関連する状態 ---
   const [depthText, setDepthText] = useState('MAGIC');
   const [textFontSize, setTextFontSize] = useState(200);
-  const [textFontFamily, setTextFontFamily] = useState('Arial Black, sans-serif');
+  const [textFontFamily, setTextFontFamily] = useState('sans-serif');
   const [textScrollSpeed, setTextScrollSpeed] = useState(2);
   const [textSoftness, setTextSoftness] = useState(6); // 縁のボケ具合（これによって角が丸まり立体感が増す）
   const [textDepth, setTextDepth] = useState(100); // テキストの明るさ（手前への飛び出し量）
@@ -80,7 +81,7 @@ function App() {
     applyAiFiltersAndDraw
   } = useStereoLoop({
     method, bgType, noiseSize, separation, depthFactor, showGuideDots, guideDotSize,
-    textPatternChars, textPatternSize, textPatternDensity, textureColor,
+    textPatternChars, textPatternSize, textPatternDensity, textPatternFontFamily, textureColor,
     depthMode, depthSourceType, setDepthSourceType,
     defaultShape, animatedShape,
     isPlaying, setIsPlaying, wiggleEnabled,
@@ -148,6 +149,7 @@ function App() {
           textPatternChars={textPatternChars} setTextPatternChars={setTextPatternChars}
           textPatternSize={textPatternSize} setTextPatternSize={setTextPatternSize}
           textPatternDensity={textPatternDensity} setTextPatternDensity={setTextPatternDensity}
+          textPatternFontFamily={textPatternFontFamily} setTextPatternFontFamily={setTextPatternFontFamily}
           textureColor={textureColor} setTextureColor={setTextureColor}
           handlePatternUpload={handlePatternUpload}
           noiseSize={noiseSize} setNoiseSize={setNoiseSize}

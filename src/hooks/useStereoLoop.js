@@ -3,7 +3,7 @@ import { generateStereogram, applyWiggleToDepthMap } from '../stereogram';
 
 export function useStereoLoop({
   method, bgType, noiseSize, separation, depthFactor, showGuideDots, guideDotSize,
-  textPatternChars, textPatternSize, textPatternDensity, textureColor,
+  textPatternChars, textPatternSize, textPatternDensity, textPatternFontFamily, textureColor,
   depthMode, depthSourceType, setDepthSourceType,
   defaultShape, animatedShape,
   isPlaying, setIsPlaying, wiggleEnabled,
@@ -491,7 +491,7 @@ export function useStereoLoop({
     if (!isPlaying && !wiggleEnabled) {
       triggerRender();
     }
-  }, [method, bgType, separation, depthFactor, noiseSize, wiggleEnabled, showGuideDots, guideDotSize, isPlaying, triggerRender, textPatternChars, textPatternSize, textPatternDensity, textureColor]);
+  }, [method, bgType, separation, depthFactor, noiseSize, wiggleEnabled, showGuideDots, guideDotSize, isPlaying, triggerRender, textPatternChars, textPatternSize, textPatternDensity, textPatternFontFamily, textureColor]);
 
   // 全画面表示の同期
   useEffect(() => {
@@ -694,7 +694,7 @@ export function useStereoLoop({
         // Z値順（奥から手前）にソートして、手前の文字が上に描画されるようにする
         stamps.sort((a, b) => a.z - b.z);
 
-        outCtx.font = `bold ${textPatternSize}px sans-serif`;
+        outCtx.font = `bold ${textPatternSize}px ${textPatternFontFamily}`;
         outCtx.textAlign = 'center';
         outCtx.textBaseline = 'middle';
 
@@ -752,7 +752,7 @@ export function useStereoLoop({
       outCtx.beginPath(); outCtx.arc(centerX - actualSeparation / 2, dotY, dotRadius, 0, Math.PI * 2); outCtx.fill();
       outCtx.beginPath(); outCtx.arc(centerX + actualSeparation / 2, dotY, dotRadius, 0, Math.PI * 2); outCtx.fill();
     }
-  }, [bgType, noiseSize, separation, depthFactor, method, showGuideDots, guideDotSize, depthCanvasRef, patternCanvasRef, outputCanvasRef, loopStateRef, textPatternChars, textPatternSize, textPatternDensity, textureColor]);
+  }, [bgType, noiseSize, separation, depthFactor, method, showGuideDots, guideDotSize, depthCanvasRef, patternCanvasRef, outputCanvasRef, loopStateRef, textPatternChars, textPatternSize, textPatternDensity, textPatternFontFamily, textureColor]);
 
   useLayoutEffect(() => { processRef.current = processFrame; });
   useLayoutEffect(() => { animatedDrawRef.current = drawAnimatedDepthMap; });

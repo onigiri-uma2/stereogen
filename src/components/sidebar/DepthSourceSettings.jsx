@@ -1,6 +1,7 @@
 import React from 'react';
 import { Activity, Upload, AlertCircle, Loader2, Wand2, X, Sliders, Play, Square } from 'lucide-react';
 import Tooltip from '../Tooltip';
+import FontSelect from './FontSelect';
 
 export default function DepthSourceSettings({
   depthMode, setDepthMode,
@@ -95,12 +96,7 @@ export default function DepthSourceSettings({
             </label>
           </Tooltip>
           <label className="mt-2" style={{ display: 'block' }}>フォント
-            <select value={textFontFamily} onChange={e => setTextFontFamily(e.target.value)}>
-              <option value="Arial Black, sans-serif">サンセリフ (太字)</option>
-              <option value="Impact, sans-serif">インパクト</option>
-              <option value="'Brush Script MT', cursive">手書き風</option>
-              <option value="'Times New Roman', serif">明朝体 (セリフ)</option>
-            </select>
+            <FontSelect value={textFontFamily} onChange={e => setTextFontFamily(e.target.value)} />
           </label>
         </div>
       )}
