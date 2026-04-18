@@ -47,7 +47,7 @@ export default function TextureSettings({
                   style={{ width: '100%', marginTop: '4px', marginBottom: '8px', padding: '6px', borderRadius: '4px', border: '1px solid #4b5563', background: '#374151', color: 'white' }}
                 >
                   <option value="">-- リストから選ぶ --</option>
-                  <option value="○□△✛×☆●■▲★">記号 (○□△✛×☆●■▲★)</option>
+                  <option value="○□△✛×☆●■▲★">記号</option>
                   <option value="あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん">ひらがな</option>
                   <option value="アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン">カタカナ</option>
                   <option value="ABCDEFGHIJKLMNOPQRSTUVWXYZ">アルファベット (大文字)</option>
