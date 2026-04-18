@@ -480,6 +480,16 @@ export function useStereoLoop({
     }
   }, [depthText, textFontSize, textFontFamily, textSoftness, textDepth, drawTextDepthMap, triggerRender, depthMode]);
 
+  // WEBフォントの遅延ロード待機（Canvasは自動再描画されないため、ダウンロード完了後に強制再描画する）
+  useEffect(() => {
+    if (typeof document !== 'undefined' && document.fonts) {
+      document.fonts.ready.then(() => {
+        if (depthMode === 'text') drawTextDepthMap(accumulatedTimeRef.current);
+        triggerRender();
+      });
+    }
+  }, [textFontFamily, textPatternFontFamily, depthMode, drawTextDepthMap, triggerRender]);
+
   // 再描画ループの状態管理 (Closureの罠を避けるためのRef)
   const loopStateRef = useRef({ isPlaying, depthSourceType, wiggleEnabled });
   useEffect(() => {
